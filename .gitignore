@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+
+# data hasil jalannya program (Proyek 2)
+data/
+*.tmp
