@@ -1,4 +1,3 @@
-"""Pengujian penyimpanan permanen ke file .csv (Proyek 2, versi CSV)."""
 import os
 import tempfile
 import unittest
@@ -14,7 +13,6 @@ from services.penyimpanan_csv_service import NAMA_FILE, PenyimpananCsv
 from services.transaksi_service import TransaksiService
 
 HARI_INI = date(2026, 8, 10)
-
 
 def buat_aplikasi(folder):
     """Rangkai satu set service baru yang terhubung ke folder data tertentu."""
@@ -50,7 +48,6 @@ class DasarPenyimpanan(unittest.TestCase):
         os.makedirs(self.folder, exist_ok=True)
         with open(os.path.join(self.folder, NAMA_FILE[kunci]), "w", encoding="utf-8") as f:
             f.write(isi)
-
 
 class TestSimpanDanMuat(DasarPenyimpanan):
     def test_simpan_membuat_folder_dan_semua_file_txt(self):
