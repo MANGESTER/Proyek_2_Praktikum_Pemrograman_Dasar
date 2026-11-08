@@ -13,11 +13,11 @@ Menu 0 (keluar) -> simpan sekali lagi
 ## Daftar file
 | File | Kolom (baris pertama = judul kolom) |
 |---|---|
-| `data/mahasiswa.csv` | `nim;nama;no_hp` |
-| `data/alat.csv` | `kode;nama;kategori;kondisi;status` |
+| `data/mahasiswa.csv` | `nim,nama,no_hp` |
+| `data/alat.csv` | `kode,nama,kategori,kondisi,status` |
 | `data/kategori.csv` | `kategori` |
-| `data/transaksi.csv` | `id;nim;tanggal_pinjam;batas_kembali;status` |
-| `data/detail_transaksi.csv` | `id_transaksi;kode_alat;tanggal_kembali;kondisi_kembali;terlambat` |
+| `data/transaksi.csv` | `id;nim,tanggal_pinjam,batas_kembali,status` |
+| `data/detail_transaksi.csv` | `id_transaksi,kode_alat,tanggal_kembali,kondisi_kembali,terlambat` |
 | `data/log.csv` | `waktu;pesan` |
 
 Contoh isi nyata ada di [`contoh_data/`](contoh_data/).
@@ -33,7 +33,7 @@ Contoh isi nyata ada di [`contoh_data/`](contoh_data/).
   akhir baris Windows (CRLF), kolom kosong di ujung baris, dan file `cp1252` hasil Excel biasa juga tetap terbaca.
 
 ## Perbedaan dengan versi .txt
-| | `.txt` (pemisah `,`) | `.csv` (pemisah `;`) |
+| | `.txt` (pemisah `,`) | `.csv` (pemisah `,`) |
 |---|---|---|
 | Dibuka di Excel/Sheets | Tidak rapi | Langsung berbentuk tabel |
 | Karakter khusus | Aturan pengkodean buatan sendiri (`\p`, `\n`, `\h`) | Ditangani modul `csv` (tanda kutip standar) |
