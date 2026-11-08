@@ -28,7 +28,7 @@ from models.mahasiswa import Mahasiswa
 from models.transaksi import Transaksi, status_dipinjam, status_sebagian, status_selesai, status_valid
 
 KOSONG = "-"  # penanda nilai kosong (mis. tanggal kembali alat yang belum dikembalikan)
-PEMISAH = ";"  # pemisah kolom saat menulis
+PEMISAH = ","  # pemisah kolom saat menulis
 
 NAMA_FILE = {
     "mahasiswa": "mahasiswa.csv",
