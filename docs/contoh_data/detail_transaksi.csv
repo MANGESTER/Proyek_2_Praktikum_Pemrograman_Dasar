@@ -1,4 +1,1 @@
-﻿id_transaksi;kode_alat;tanggal_kembali;kondisi_kembali;terlambat
-T001;A001;2026-11-08;Baik;0
-T001;A002;2026-11-20;Rusak Berat;1
-T001;A007;-;-;0
+﻿id_transaksi,kode_alat,tanggal_kembali,kondisi_kembali,terlambat

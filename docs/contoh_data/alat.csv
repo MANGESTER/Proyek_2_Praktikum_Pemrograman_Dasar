@@ -1,9 +1,9 @@
-﻿kode;nama;kategori;kondisi;status
-A001;Laptop;perangkat komputasi;Baik;Tersedia
-A002;Raspberry Pi;perangkat komputasi;Rusak Berat;Rusak
-A003;Router;perangkat jaringan;Baik;Tersedia
-A004;Kabel LAN;perangkat jaringan;Baik;Tersedia
-A005;Kamera Digital;perangkat multimedia;Baik;Tersedia
-A006;Tripod;perangkat multimedia;Baik;Tersedia
-A007;Multimeter;perangkat elektronik;Baik;Dipinjam
-A008;Multimeter;perangkat elektronik;Baik;Tersedia
+﻿kode,nama,kategori,kondisi,status
+A001,Laptop,perangkat komputasi,Baik,Tersedia
+A002,Raspberry Pi,perangkat komputasi,Baik,Tersedia
+A003,Router,perangkat jaringan,Baik,Tersedia
+A004,Kabel LAN,perangkat jaringan,Baik,Tersedia
+A005,Kamera Digital,perangkat multimedia,Baik,Tersedia
+A006,Tripod,perangkat multimedia,Baik,Tersedia
+A007,Multimeter,perangkat elektronik,Baik,Tersedia
+A008,Multimeter,perangkat elektronik,Baik,Tersedia
