@@ -33,7 +33,7 @@ Contoh isi nyata ada di [`contoh_data/`](contoh_data/).
   akhir baris Windows (CRLF), kolom kosong di ujung baris, dan file `cp1252` hasil Excel biasa juga tetap terbaca.
 
 ## Perbedaan dengan versi .txt
-| | `.txt` (pemisah `\|`) | `.csv` (pemisah `;`) |
+| | `.txt` (pemisah `,`) | `.csv` (pemisah `;`) |
 |---|---|---|
 | Dibuka di Excel/Sheets | Tidak rapi | Langsung berbentuk tabel |
 | Karakter khusus | Aturan pengkodean buatan sendiri (`\p`, `\n`, `\h`) | Ditangani modul `csv` (tanda kutip standar) |
