@@ -1,15 +1,15 @@
 """Penyimpanan permanen ke file .csv (Proyek 2, versi CSV).
 
 Setiap jenis data disimpan di satu file CSV. Baris pertama berisi nama kolom, baris berikutnya berisi data.
-Pemisah kolom adalah ';' (cocok dengan Excel berbahasa Indonesia); ubah PEMISAH menjadi ',' bila perlu.
+Pemisah kolom adalah ',' (cocok dengan Excel berbahasa Indonesia); ubah PEMISAH menjadi ',' bila perlu.
 Saat membaca, pemisah ';' maupun ',' dikenali otomatis.
 
-    data/mahasiswa.csv         nim;nama;no_hp
-    data/alat.csv              kode;nama;kategori;kondisi;status
+    data/mahasiswa.csv         nim,nama,no_hp
+    data/alat.csv              kode,nama,kategori;kondisi;status
     data/kategori.csv          kategori
-    data/transaksi.csv         id;nim;tanggal_pinjam;batas_kembali;status
-    data/detail_transaksi.csv  id_transaksi;kode_alat;tanggal_kembali;kondisi_kembali;terlambat
-    data/log.csv               waktu;pesan
+    data/transaksi.csv         id,nim,tanggal_pinjam,batas_kembali,status
+    data/detail_transaksi.csv  id_transaksi,kode_alat,tanggal_kembali,kondisi_kembali,terlambat
+    data/log.csv               waktu,pesan
 
 Status "aktif" mahasiswa dan alat TIDAK disimpan; dihitung ulang dari transaksi saat file dimuat,
 sehingga tidak mungkin berbeda dengan isi transaksi.
