@@ -50,7 +50,7 @@ python -m unittest discover -v    # jalankan seluruh pengujian
 ```
 
 ## Penyimpanan File CSV
-Data tersimpan otomatis setelah setiap aksi yang berhasil dan saat keluar (menu 0). File CSV (pemisah `;`, bisa dibuka
+Data tersimpan otomatis setelah setiap aksi yang berhasil dan saat keluar (menu 0). File CSV (pemisah `,`, bisa dibuka
 di Excel) ada di folder `data/`:
 `mahasiswa.csv`, `alat.csv`, `kategori.csv`, `transaksi.csv`, `detail_transaksi.csv`, `log.csv`.
 Untuk memulai dari data kosong, tutup program lalu hapus folder `data/`.
