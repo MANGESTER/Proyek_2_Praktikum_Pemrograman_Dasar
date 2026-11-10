@@ -7,7 +7,6 @@ DATA_ALAT = [("A001", "Laptop", "perangkat komputasi"), ("A002", "Raspberry Pi",
              ("A005", "Kamera Digital", "perangkat multimedia"), ("A006", "Tripod", "perangkat multimedia"),
              ("A007", "Multimeter", "perangkat elektronik"), ("A008", "Multimeter", "perangkat elektronik")]
 
-
 def muat_data_contoh(mhs, alat):
     # periksa dulu: data contoh dimuat seluruhnya atau tidak sama sekali (tidak setengah jalan)
     nim_ada = {m.nim for m in mhs.semua()}

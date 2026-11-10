@@ -42,14 +42,12 @@ NAMA_FILE = {
 KOLOM_PERTAMA = {"mahasiswa": "nim", "alat": "kode", "kategori": "kategori",
                  "transaksi": "id", "detail": "id_transaksi", "log": "waktu"}
 
-
 def _tanggal_ke_teks(nilai):
     return nilai.isoformat() if nilai else KOSONG
 
 
 def _teks_ke_tanggal(teks):
     return None if teks == KOSONG else date.fromisoformat(teks)
-
 
 def _deteksi_pemisah(teks):
     """Pilih ';' atau ',' berdasarkan baris pertama (isi di dalam tanda kutip diabaikan)."""
@@ -59,7 +57,6 @@ def _deteksi_pemisah(teks):
             titik_koma, koma = polos.count(";"), polos.count(",")
             return ";" if titik_koma > koma else ("," if koma > titik_koma else PEMISAH)
     return PEMISAH
-
 
 class PenyimpananCsv:
     """Membaca (muat) dan menulis (simpan) seluruh data aplikasi ke folder berisi file .csv."""
