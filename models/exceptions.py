@@ -14,4 +14,4 @@ class AturanBisnisError(LabError):
     'Operasi melanggar aturan bisnis laboratorium'
 
 class PenyimpananError(LabError):
-    'Gagal membaca atau menulis file data (.txt)'
+    'Gagal membaca atau menulis file data (.csv)'
