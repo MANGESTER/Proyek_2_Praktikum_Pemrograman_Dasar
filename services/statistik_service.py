@@ -1,6 +1,5 @@
 from collections import Counter
 
-
 class StatistikService:
     """Tantangan B: statistik peminjaman (dihitung dari data transaksi)."""
 

@@ -13,7 +13,6 @@ from ui.menu import MenuCLI
 # Folder data selalu berada di sebelah main.py, apa pun folder tempat program dijalankan.
 FOLDER_DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 
-
 def main():
     log = LogService()
     mahasiswa = MahasiswaService(log)
