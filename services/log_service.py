@@ -1,6 +1,5 @@
 from datetime import datetime
 
-
 class LogService:
     """Tantangan D: log aktivitas disimpan dalam list of dict."""
 
