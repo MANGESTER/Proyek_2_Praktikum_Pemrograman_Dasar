@@ -1,4 +1,4 @@
-"""Penyimpanan permanen ke file .csv (Proyek 2, versi CSV).
+"""Penyimpanan permanen ke file .csv
 
 Setiap jenis data disimpan di satu file CSV di folder data/.
 Baris pertama berisi nama kolom, baris berikutnya berisi data.

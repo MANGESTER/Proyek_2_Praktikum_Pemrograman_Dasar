@@ -13,7 +13,6 @@ from services.transaksi_service import TransaksiService
 
 HARI_INI = date(2026, 8, 10)
 
-
 class DasarTest(unittest.TestCase):
     def setUp(self):
         self.log = LogService()
@@ -29,7 +28,6 @@ class DasarTest(unittest.TestCase):
                                 ("A003", "Kabel LAN", "perangkat jaringan"),
                                 ("A004", "Multimeter", "perangkat elektronik")]:
             self.alat.tambah(kode, nama, kat)
-
 
 class TestSkenarioWajib(DasarTest):
     def test_skenario1_tambah_data_dan_kategori_baru(self):
@@ -86,7 +84,6 @@ class TestSkenarioWajib(DasarTest):
         self.mhs.hapus("M002")  # tidak aktif -> boleh
         self.assertEqual(len(self.mhs.semua()), 1)
 
-
 class TestAturanTambahan(DasarTest):
     def test_maks_dua_transaksi_aktif(self):
         self.trx.buat("M001", ["A001"], tanggal=HARI_INI)
@@ -121,7 +118,6 @@ class TestAturanTambahan(DasarTest):
         self.assertEqual(len(self.trx.cari_by_mahasiswa("dik")), 1)
         self.assertEqual(self.trx.cari_by_mahasiswa("abyan"), [])
 
-
 class TestTantangan(DasarTest):
     def test_a_pencarian_fleksibel(self):
         self.assertEqual([a.kode for a in self.alat.cari("A003", "kode")], ["A003"])
@@ -151,7 +147,6 @@ class TestTantangan(DasarTest):
         pesan = " ".join(e["pesan"] for e in self.log.semua())
         self.assertIn("Mahasiswa M001 ditambahkan", pesan)
         self.assertIn("Transaksi T001 dibuat", pesan)
-
 
 class TestPerbaikanBug(DasarTest):
     def test_alat_sudah_kembali_tapi_transaksi_aktif_tidak_boleh_dihapus(self):
@@ -186,7 +181,6 @@ class TestPerbaikanBug(DasarTest):
         with self.assertRaises(ValidasiError):  # nama valid, kategori hanya spasi
             self.alat.edit("A001", "Nama Alat Baru", "   ")
         self.assertEqual(self.alat.ambil("A001").nama, "Kamera Digital")
-
 
 if __name__ == "__main__":
     unittest.main()

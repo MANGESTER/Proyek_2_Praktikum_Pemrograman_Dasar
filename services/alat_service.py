@@ -5,7 +5,6 @@ from utils.validasi import wajib
 
 KATEGORI_AWAL = ("perangkat komputasi", "perangkat jaringan", "perangkat multimedia")
 
-
 class AlatService:
     """CRUD alat + pencarian + pemeliharaan. Data: dict {kode: Alat}.
 

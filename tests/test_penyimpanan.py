@@ -51,7 +51,6 @@ class DasarPenyimpanan(unittest.TestCase):
         with open(os.path.join(self.folder, NAMA_FILE[kunci]), "w", encoding="utf-8") as f:
             f.write(isi)
 
-
 class TestSimpanDanMuat(DasarPenyimpanan):
     def test_simpan_membuat_folder_dan_semua_file_csv(self):
         self.simpanan.simpan()
@@ -182,7 +181,6 @@ class TestSimpanDanMuat(DasarPenyimpanan):
         _, mhs, _, _ = self.muat_ulang()
         self.assertEqual(mhs.ambil("M001").nama, "Dika Baru")
 
-
 class TestFileRusak(DasarPenyimpanan):
     def test_jumlah_kolom_salah_menyebut_nama_file_dan_baris(self):
         self.tulis("mahasiswa", "nim,nama,no_hp\nM001,Dika\n")
@@ -236,7 +234,6 @@ class TestFileRusak(DasarPenyimpanan):
         self.tulis("transaksi", "T001,M001,2026-08-10,2026-08-17,selesai\n")
         with self.assertRaises(PenyimpananError):
             self.muat_ulang()
-
 
 class TestPerbaikanTahap2(DasarPenyimpanan):
     def test_file_berbom_tidak_menghasilkan_data_palsu(self):
@@ -313,7 +310,6 @@ class TestPerbaikanTahap2(DasarPenyimpanan):
         self.assertEqual([m.nim for m in mhs.semua()], ["M003"])  # tidak ada yang setengah masuk
         self.assertEqual(alat.semua(), [])
 
-
 class TestFormatCsv(DasarPenyimpanan):
     def test_baris_judul_dan_bom_ditulis_untuk_excel(self):
         self.simpanan.simpan()
@@ -359,7 +355,6 @@ class TestFormatCsv(DasarPenyimpanan):
         self.tulis("mahasiswa", 'M001,"Dika,081234567890\n')
         with self.assertRaises(PenyimpananError):
             self.muat_ulang()
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -33,7 +33,7 @@ def main():
           f"{len(alat.semua())} alat, {len(transaksi.semua())} transaksi.")
     try:
         MenuCLI(mahasiswa, alat, transaksi, statistik, log, penyimpanan).jalan()
-    except (KeyboardInterrupt, EOFError):  # Ctrl+C atau Ctrl+Z/Ctrl+D di prompt
+    except (KeyboardInterrupt, EOFError):
         print("\nProgram dihentikan. Menyimpan data...")
         try:
             penyimpanan.simpan()
