@@ -1,11 +1,11 @@
 """Penyimpanan permanen ke file .csv (Proyek 2, versi CSV).
 
-Setiap jenis data disimpan di satu file CSV. Baris pertama berisi nama kolom, baris berikutnya berisi data.
-Pemisah kolom adalah ',' (cocok dengan Excel berbahasa Indonesia); ubah PEMISAH menjadi ',' bila perlu.
-Saat membaca, pemisah ';' maupun ',' dikenali otomatis.
+Setiap jenis data disimpan di satu file CSV di folder data/.
+Baris pertama berisi nama kolom, baris berikutnya berisi data.
+Pemisah kolom adalah koma (,). Tanda kutip ditangani otomatis oleh modul csv.
 
     data/mahasiswa.csv         nim,nama,no_hp
-    data/alat.csv              kode,nama,kategori;kondisi;status
+    data/alat.csv              kode,nama,kategori,kondisi,status
     data/kategori.csv          kategori
     data/transaksi.csv         id,nim,tanggal_pinjam,batas_kembali,status
     data/detail_transaksi.csv  id_transaksi,kode_alat,tanggal_kembali,kondisi_kembali,terlambat
@@ -13,12 +13,13 @@ Saat membaca, pemisah ';' maupun ',' dikenali otomatis.
 
 Status "aktif" mahasiswa dan alat TIDAK disimpan; dihitung ulang dari transaksi saat file dimuat,
 sehingga tidak mungkin berbeda dengan isi transaksi.
+
+Alur kerja:
+    muat()   -> baca semua file CSV, periksa isinya, lalu isi service (dipanggil saat program mulai)
+    simpan() -> tulis semua data di memori ke file CSV (dipanggil setelah setiap aksi berhasil)
 """
 import csv
-import io
 import os
-import shutil
-import re
 from datetime import date
 
 from models.alat import (Alat, Kondisi_Baik, Kondisi_Valid, Status_Dipinjam, Status_Pemeliharaan,
@@ -28,7 +29,7 @@ from models.mahasiswa import Mahasiswa
 from models.transaksi import Transaksi, status_dipinjam, status_sebagian, status_selesai, status_valid
 
 KOSONG = "-"  # penanda nilai kosong (mis. tanggal kembali alat yang belum dikembalikan)
-PEMISAH = ","  # pemisah kolom saat menulis
+PEMISAH = ","  # pemisah kolom
 
 NAMA_FILE = {
     "mahasiswa": "mahasiswa.csv",
@@ -38,27 +39,30 @@ NAMA_FILE = {
     "detail": "detail_transaksi.csv",
     "log": "log.csv",
 }
+
 # nama kolom pertama tiap file; dipakai untuk mengenali (dan melewati) baris judul
-KOLOM_PERTAMA = {"mahasiswa": "nim", "alat": "kode", "kategori": "kategori",
-                 "transaksi": "id", "detail": "id_transaksi", "log": "waktu"}
+KOLOM_PERTAMA = {
+    "mahasiswa": "nim",
+    "alat": "kode",
+    "kategori": "kategori",
+    "transaksi": "id",
+    "detail": "id_transaksi",
+    "log": "waktu",
+}
 
 
-def _tanggal_ke_teks(nilai):
-    return nilai.isoformat() if nilai else KOSONG
+def tanggal_ke_teks(nilai):
+    """Ubah tanggal menjadi teks 'YYYY-MM-DD'. Bila kosong (None), hasilnya '-'."""
+    if nilai is None:
+        return KOSONG
+    return nilai.isoformat()
 
 
-def _teks_ke_tanggal(teks):
-    return None if teks == KOSONG else date.fromisoformat(teks)
-
-
-def _deteksi_pemisah(teks):
-    """Pilih ';' atau ',' berdasarkan baris pertama (isi di dalam tanda kutip diabaikan)."""
-    for baris in teks.splitlines():
-        if baris.strip():
-            polos = re.sub(r'"(?:[^"]|"")*"', "", baris)
-            titik_koma, koma = polos.count(";"), polos.count(",")
-            return ";" if titik_koma > koma else ("," if koma > titik_koma else PEMISAH)
-    return PEMISAH
+def teks_ke_tanggal(teks):
+    """Ubah teks 'YYYY-MM-DD' menjadi tanggal. Teks '-' menjadi None."""
+    if teks == KOSONG:
+        return None
+    return date.fromisoformat(teks)
 
 
 class PenyimpananCsv:
@@ -70,7 +74,6 @@ class PenyimpananCsv:
         self._mhs = mahasiswa_service
         self._alat = alat_service
         self._trx = transaksi_service
-        self._terakhir = {}  # isi terakhir yang dimuat/ditulis per file, agar file yang tak berubah tidak ditulis ulang
 
     @property
     def folder(self):
@@ -79,234 +82,285 @@ class PenyimpananCsv:
     def _path(self, kunci):
         return os.path.join(self._folder, NAMA_FILE[kunci])
 
-    # ------------------------------------------------------------------ menulis
-    def _bangun(self):
-        """Susun isi teks setiap file dari keadaan data saat ini."""
-        isi = {
-            "mahasiswa": ("nim|nama|no_hp",
-                          [[m.nim, m.nama, m.no_hp] for m in self._mhs.semua()]),
-            "alat": ("kode|nama|kategori|kondisi|status",
-                     [[a.kode, a.nama, a.kategori, a.kondisi, a.status] for a in self._alat.semua()]),
-            "kategori": ("kategori", [[k] for k in self._alat.daftar_kategori()]),
-            "transaksi": ("id|nim|tanggal_pinjam|batas_kembali|status",
-                          [[t.id, t.nim, _tanggal_ke_teks(t.tanggal_pinjam),
-                            _tanggal_ke_teks(t.batas_kembali), t.status]
-                           for t in self._trx.semua()]),
-            "detail": ("id_transaksi|kode_alat|tanggal_kembali|kondisi_kembali|terlambat",
-                       [[t.id, d.kode_alat, _tanggal_ke_teks(d.tanggal_kembali),
-                         d.kondisi_kembali or KOSONG, "1" if d.terlambat else "0"]
-                        for t in self._trx.semua() for d in t.items.values()]),
-            "log": ("waktu|pesan", [[e["waktu"], e["pesan"]] for e in self._log.semua()]),
-        }
-        hasil = {}
-        for kunci, (judul, baris) in isi.items():
-            buf = io.StringIO()
-            tulis = csv.writer(buf, delimiter=PEMISAH, lineterminator="\r\n")
-            tulis.writerow(judul.split("|"))  # baris pertama = nama kolom
-            tulis.writerows(baris)  # modul csv memberi tanda kutip otomatis bila perlu
-            hasil[kunci] = buf.getvalue()
-        return hasil
-
-    @staticmethod
-    def _hapus_sisa(daftar):
-        """Hapus file sementara/cadangan bila ada (kegagalan menghapus diabaikan)."""
-        for path in daftar:
-            if os.path.exists(path):
-                try:
-                    os.remove(path)
-                except OSError:
-                    pass
+    # ------------------------------------------------------------------ MENULIS
+    def _tulis_file(self, kunci, judul, daftar_baris):
+        """Tulis satu file CSV: baris judul dulu, lalu satu baris untuk setiap data."""
+        # utf-8-sig menambah BOM di awal file supaya Excel mengenali huruf berakses
+        with open(self._path(kunci), "w", encoding="utf-8-sig", newline="") as f:
+            penulis = csv.writer(f, delimiter=PEMISAH)
+            penulis.writerow(judul)
+            for baris in daftar_baris:
+                penulis.writerow(baris)
 
     def simpan(self):
-        """Tulis file yang isinya berubah. Semua file ditulis ke *.tmp dulu, baru diganti sekaligus."""
-        baru = self._bangun()
-        berubah = [k for k, teks in baru.items()
-                   if teks != self._terakhir.get(k) or not os.path.exists(self._path(k))]
-        if not berubah:
-            return
-        sementara = []  # (file sementara, file tujuan)
-        cadangan = {}  # file tujuan -> salinan isi lama (.bak), untuk membatalkan bila penggantian gagal di tengah
-        diganti = []  # file tujuan yang sudah berhasil diganti
+        """Tulis semua data di memori ke file CSV. Gagal menulis -> PenyimpananError."""
         try:
             os.makedirs(self._folder, exist_ok=True)
-            for kunci in berubah:
-                path = self._path(kunci)
-                tmp = path + ".tmp"
-                with open(tmp, "w", encoding="utf-8-sig", newline="") as f:  # -sig: Excel mengenali UTF-8
-                    f.write(baru[kunci])
-                sementara.append((tmp, path))
-            for _, path in sementara:
-                if os.path.exists(path):
-                    shutil.copyfile(path, path + ".bak")
-                    cadangan[path] = path + ".bak"
-            for tmp, path in sementara:
-                os.replace(tmp, path)
-                diganti.append(path)
-        except OSError as e:
-            # penggantian gagal di tengah (mis. file dikunci OneDrive): kembalikan yang sudah terlanjur diganti
-            # supaya file di disk tetap sinkron satu sama lain
-            for path in reversed(diganti):
-                try:
-                    if path in cadangan:
-                        os.replace(cadangan.pop(path), path)
-                    else:
-                        os.remove(path)
-                except OSError:
-                    pass
-            self._hapus_sisa([tmp for tmp, _ in sementara] + list(cadangan.values()))
-            raise PenyimpananError(f"Gagal menulis data ke folder '{self._folder}': {e}")
-        self._hapus_sisa(list(cadangan.values()))
-        self._terakhir.update({k: baru[k] for k in berubah})
 
-    # ------------------------------------------------------------------ membaca
-    def _baca(self, kunci, jumlah_kolom):
-        """Kembalikan list (nomor_baris, [kolom...]). File belum ada = data kosong."""
-        path = self._path(kunci)
+            # mahasiswa.csv
+            baris = []
+            for m in self._mhs.semua():
+                baris.append([m.nim, m.nama, m.no_hp])
+            self._tulis_file("mahasiswa", ["nim", "nama", "no_hp"], baris)
+
+            # alat.csv
+            baris = []
+            for a in self._alat.semua():
+                baris.append([a.kode, a.nama, a.kategori, a.kondisi, a.status])
+            self._tulis_file("alat", ["kode", "nama", "kategori", "kondisi", "status"], baris)
+
+            # kategori.csv
+            baris = []
+            for k in self._alat.daftar_kategori():
+                baris.append([k])
+            self._tulis_file("kategori", ["kategori"], baris)
+
+            # transaksi.csv dan detail_transaksi.csv
+            # satu transaksi bisa berisi banyak alat, jadi alatnya ditulis di file detail (satu alat = satu baris)
+            baris_transaksi = []
+            baris_detail = []
+            for t in self._trx.semua():
+                baris_transaksi.append([t.id, t.nim, tanggal_ke_teks(t.tanggal_pinjam),
+                                        tanggal_ke_teks(t.batas_kembali), t.status])
+                for d in t.items.values():
+                    kondisi = d.kondisi_kembali
+                    if kondisi is None:
+                        kondisi = KOSONG
+                    terlambat = "0"
+                    if d.terlambat:
+                        terlambat = "1"
+                    baris_detail.append([t.id, d.kode_alat, tanggal_ke_teks(d.tanggal_kembali),
+                                         kondisi, terlambat])
+            self._tulis_file("transaksi", ["id", "nim", "tanggal_pinjam", "batas_kembali", "status"],
+                             baris_transaksi)
+            self._tulis_file("detail", ["id_transaksi", "kode_alat", "tanggal_kembali",
+                                        "kondisi_kembali", "terlambat"], baris_detail)
+
+            # log.csv
+            baris = []
+            for e in self._log.semua():
+                baris.append([e["waktu"], e["pesan"]])
+            self._tulis_file("log", ["waktu", "pesan"], baris)
+        except OSError as e:
+            raise PenyimpananError(f"Gagal menulis data ke folder '{self._folder}': {e}")
+
+    # ------------------------------------------------------------------ MEMBACA
+    def _baca_file(self, kunci, jumlah_kolom):
+        """Baca satu file CSV. Hasilnya list berisi (nomor_baris, [kolom, ...]).
+
+        File yang belum ada dianggap data kosong. Baris judul dan baris kosong dilewati."""
         nama = NAMA_FILE[kunci]
-        if not os.path.exists(path):
-            return []
+        hasil = []
+        if not os.path.exists(self._path(kunci)):
+            return hasil
         try:
-            with open(path, "rb") as f:
-                mentah = f.read()
+            # utf-8-sig: file dengan maupun tanpa BOM sama-sama terbaca
+            with open(self._path(kunci), "r", encoding="utf-8-sig", newline="") as f:
+                pembaca = csv.reader(f, delimiter=PEMISAH)
+                baris_pertama = True
+                for kolom in pembaca:
+                    no = pembaca.line_num
+                    if "".join(kolom).strip() == "":
+                        continue  # baris kosong
+                    if baris_pertama:
+                        baris_pertama = False
+                        if kolom[0].strip().lower() == KOLOM_PERTAMA[kunci]:
+                            continue  # ini baris judul kolom, bukan data
+                    if len(kolom) != jumlah_kolom:
+                        raise PenyimpananError(
+                            f"{nama} baris {no}: diharapkan {jumlah_kolom} kolom, ditemukan {len(kolom)}.")
+                    hasil.append((no, kolom))
         except OSError as e:
             raise PenyimpananError(f"{nama} tidak dapat dibaca: {e}")
-        try:
-            teks = mentah.decode("utf-8-sig")  # -sig: abaikan BOM
         except UnicodeDecodeError:
-            teks = mentah.decode("cp1252", errors="replace")  # CSV hasil simpan Excel biasa (bukan 'CSV UTF-8')
-        pembaca = csv.reader(io.StringIO(teks, newline=""), delimiter=_deteksi_pemisah(teks))
-        hasil, judul_dilewati = [], False
-        try:
-            for kolom in pembaca:
-                no = pembaca.line_num
-                while len(kolom) > jumlah_kolom and kolom[-1].strip() == "":
-                    kolom.pop()  # Excel sering menambah kolom kosong di ujung baris
-                if not any(k.strip() for k in kolom):
-                    continue  # baris kosong
-                if not judul_dilewati:
-                    judul_dilewati = True
-                    if kolom[0].strip().lower() == KOLOM_PERTAMA[kunci]:
-                        continue  # baris judul kolom
-                if len(kolom) != jumlah_kolom:
-                    raise PenyimpananError(
-                        f"{nama} baris {no}: diharapkan {jumlah_kolom} kolom, ditemukan {len(kolom)}.")
-                hasil.append((no, kolom))
+            raise PenyimpananError(f"{nama} harus disimpan dengan encoding UTF-8.")
         except csv.Error as e:
             raise PenyimpananError(f"{nama} baris {pembaca.line_num}: format CSV tidak valid ({e}).")
         return hasil
 
     @staticmethod
-    def _bungkus(nama_file, no, kesalahan):
-        return PenyimpananError(f"{nama_file} baris {no}: {kesalahan}")
+    def _salah(nama_file, no, pesan):
+        """Buat PenyimpananError yang menyebut nama file dan nomor barisnya."""
+        return PenyimpananError(f"{nama_file} baris {no}: {pesan}")
 
     def muat(self):
-        """Isi semua service dari file. Bila file rusak/tidak konsisten, PenyimpananError dilempar
-        dan data di memori tidak boleh dipakai (pemanggil menghentikan program)."""
-        # 1. log
-        self._log.muat([{"waktu": w, "pesan": p} for _, (w, p) in self._baca("log", 2)])
+        """Isi semua service dari file CSV.
 
-        # 2. mahasiswa
-        daftar_mhs = {}
-        for no, (nim, nama, hp) in self._baca("mahasiswa", 3):
-            if not nim or not nama:
-                raise self._bungkus("mahasiswa.csv", no, "NIM dan nama tidak boleh kosong.")
-            if nim in daftar_mhs:
-                raise self._bungkus("mahasiswa.csv", no, f"NIM {nim} muncul lebih dari sekali.")
-            daftar_mhs[nim] = Mahasiswa(nim, nama, hp)
-        self._mhs.muat(daftar_mhs.values())
+        Bila file rusak atau tidak konsisten, PenyimpananError dilempar dan program dihentikan
+        oleh pemanggil (main.py), supaya data lama tidak tertimpa data yang setengah benar."""
+        self._muat_log()
+        self._muat_mahasiswa()
+        self._muat_alat()
+        self._muat_transaksi()  # harus terakhir: transaksi memakai data mahasiswa dan alat
+        self._cek_konsistensi()
 
-        # 3. alat
-        daftar_alat = {}
-        for no, (kode, nama, kategori, kondisi, status) in self._baca("alat", 5):
-            if kode in daftar_alat:
-                raise self._bungkus("alat.csv", no, f"Kode {kode} muncul lebih dari sekali.")
+    def _muat_log(self):
+        daftar = []
+        for no, kolom in self._baca_file("log", 2):
+            daftar.append({"waktu": kolom[0], "pesan": kolom[1]})
+        self._log.muat(daftar)
+
+    def _muat_mahasiswa(self):
+        daftar = []
+        nim_terpakai = []
+        for no, kolom in self._baca_file("mahasiswa", 3):
+            nim = kolom[0]
+            nama = kolom[1]
+            no_hp = kolom[2]
+            if nim == "" or nama == "":
+                raise self._salah("mahasiswa.csv", no, "NIM dan nama tidak boleh kosong.")
+            if nim in nim_terpakai:
+                raise self._salah("mahasiswa.csv", no, f"NIM {nim} muncul lebih dari sekali.")
+            nim_terpakai.append(nim)
+            daftar.append(Mahasiswa(nim, nama, no_hp))
+        self._mhs.muat(daftar)
+
+    def _muat_alat(self):
+        daftar = []
+        kode_terpakai = []
+        for no, kolom in self._baca_file("alat", 5):
+            kode = kolom[0]
+            nama = kolom[1]
+            kategori = kolom[2]
+            kondisi = kolom[3]
+            status = kolom[4]
+            if kode in kode_terpakai:
+                raise self._salah("alat.csv", no, f"Kode {kode} muncul lebih dari sekali.")
             if status not in Status_Valid:
-                raise self._bungkus("alat.csv", no, f"Status '{status}' tidak dikenal.")
+                raise self._salah("alat.csv", no, f"Status '{status}' tidak dikenal.")
             try:
-                alat = Alat(kode, nama, kategori, kondisi)
+                alat = Alat(kode, nama, kategori, kondisi)  # kondisi yang tidak sah ditolak di sini
             except LabError as e:
-                raise self._bungkus("alat.csv", no, str(e))
-            baik = kondisi == Kondisi_Baik
-            if (status in (Status_Tersedia, Status_Dipinjam) and not baik) or \
-                    (status in (Status_Rusak, Status_Pemeliharaan) and baik):
-                raise self._bungkus("alat.csv", no, f"status '{status}' tidak cocok dengan kondisi '{kondisi}'.")
+                raise self._salah("alat.csv", no, str(e))
+            # status harus cocok dengan kondisi:
+            # alat Tersedia/Dipinjam harus berkondisi Baik; alat Rusak/Pemeliharaan tidak boleh Baik
+            kondisi_baik = (kondisi == Kondisi_Baik)
+            if (status == Status_Tersedia or status == Status_Dipinjam) and not kondisi_baik:
+                raise self._salah("alat.csv", no, f"status '{status}' tidak cocok dengan kondisi '{kondisi}'.")
+            if (status == Status_Rusak or status == Status_Pemeliharaan) and kondisi_baik:
+                raise self._salah("alat.csv", no, f"status '{status}' tidak cocok dengan kondisi '{kondisi}'.")
             alat.status = status
-            daftar_alat[kode] = alat
-        kategori = [k for _, (k,) in self._baca("kategori", 1)]
-        self._alat.muat(daftar_alat.values(), kategori)
+            kode_terpakai.append(kode)
+            daftar.append(alat)
 
-        # 4. transaksi + detailnya
-        daftar_trx = {}
-        for no, (id_trx, nim, tgl_pinjam, batas, status) in self._baca("transaksi", 5):
-            if id_trx in daftar_trx:
-                raise self._bungkus("transaksi.csv", no, f"ID {id_trx} muncul lebih dari sekali.")
+        daftar_kategori = []
+        for no, kolom in self._baca_file("kategori", 1):
+            daftar_kategori.append(kolom[0])
+        self._alat.muat(daftar, daftar_kategori)
+
+    def _muat_transaksi(self):
+        # langkah 1: baca transaksi.csv ke dict {id: data}
+        data_trx = {}
+        for no, kolom in self._baca_file("transaksi", 5):
+            id_trx = kolom[0]
+            nim = kolom[1]
+            tgl_pinjam = kolom[2]
+            batas = kolom[3]
+            status = kolom[4]
+            if id_trx in data_trx:
+                raise self._salah("transaksi.csv", no, f"ID {id_trx} muncul lebih dari sekali.")
             if status not in status_valid:
-                raise self._bungkus("transaksi.csv", no, f"Status '{status}' tidak dikenal.")
+                raise self._salah("transaksi.csv", no, f"Status '{status}' tidak dikenal.")
             try:
-                daftar_trx[id_trx] = {"nim": nim, "pinjam": date.fromisoformat(tgl_pinjam),
-                                      "batas": date.fromisoformat(batas), "status": status, "detail": []}
+                tanggal_pinjam = date.fromisoformat(tgl_pinjam)
+                batas_kembali = date.fromisoformat(batas)
             except ValueError:
-                raise self._bungkus("transaksi.csv", no, "Tanggal harus berformat YYYY-MM-DD.")
-        for no, (id_trx, kode, tgl_kembali, kondisi, terlambat) in self._baca("detail", 5):
-            if id_trx not in daftar_trx:
-                raise self._bungkus("detail_transaksi.csv", no, f"Transaksi {id_trx} tidak ada di transaksi.csv.")
-            if terlambat not in ("0", "1"):
-                raise self._bungkus("detail_transaksi.csv", no, "Kolom terlambat harus 0 atau 1.")
-            try:
-                tgl = _teks_ke_tanggal(tgl_kembali)
-            except ValueError:
-                raise self._bungkus("detail_transaksi.csv", no, "Tanggal harus berformat YYYY-MM-DD atau '-'.")
-            kondisi_nilai = None if kondisi == KOSONG else kondisi
-            if (tgl is None) != (kondisi_nilai is None):
-                raise self._bungkus("detail_transaksi.csv", no,
-                                    "tanggal_kembali dan kondisi_kembali harus sama-sama terisi atau sama-sama '-'.")
-            if kondisi_nilai is not None and kondisi_nilai not in Kondisi_Valid:
-                raise self._bungkus("detail_transaksi.csv", no, f"kondisi '{kondisi_nilai}' tidak dikenal.")
-            daftar_trx[id_trx]["detail"].append((no, kode, tgl, kondisi_nilai, terlambat == "1"))
+                raise self._salah("transaksi.csv", no, "Tanggal harus berformat YYYY-MM-DD.")
+            data_trx[id_trx] = {"nim": nim, "pinjam": tanggal_pinjam, "batas": batas_kembali,
+                                "status": status, "detail": []}
 
-        hasil = []
-        for id_trx, d in daftar_trx.items():
-            if not d["detail"]:
+        # langkah 2: baca detail_transaksi.csv, tempelkan tiap baris ke transaksi induknya
+        for no, kolom in self._baca_file("detail", 5):
+            id_trx = kolom[0]
+            kode = kolom[1]
+            tgl_kembali = kolom[2]
+            kondisi = kolom[3]
+            terlambat = kolom[4]
+            if id_trx not in data_trx:
+                raise self._salah("detail_transaksi.csv", no, f"Transaksi {id_trx} tidak ada di transaksi.csv.")
+            if terlambat != "0" and terlambat != "1":
+                raise self._salah("detail_transaksi.csv", no, "Kolom terlambat harus 0 atau 1.")
+            try:
+                tanggal = teks_ke_tanggal(tgl_kembali)
+            except ValueError:
+                raise self._salah("detail_transaksi.csv", no, "Tanggal harus berformat YYYY-MM-DD atau '-'.")
+            if kondisi == KOSONG:
+                kondisi = None
+            if (tanggal is None and kondisi is not None) or (tanggal is not None and kondisi is None):
+                raise self._salah("detail_transaksi.csv", no,
+                                  "tanggal_kembali dan kondisi_kembali harus sama-sama terisi atau sama-sama '-'.")
+            if kondisi is not None and kondisi not in Kondisi_Valid:
+                raise self._salah("detail_transaksi.csv", no, f"kondisi '{kondisi}' tidak dikenal.")
+            data_trx[id_trx]["detail"].append({"kode": kode, "tanggal": tanggal, "kondisi": kondisi,
+                                               "terlambat": (terlambat == "1")})
+
+        # langkah 3: periksa tiap transaksi lalu ubah menjadi objek Transaksi
+        daftar = []
+        for id_trx in data_trx:
+            d = data_trx[id_trx]
+            detail_list = d["detail"]
+            if len(detail_list) == 0:
                 raise PenyimpananError(f"Transaksi {id_trx} tidak memiliki alat di detail_transaksi.csv.")
-            kodes = [kode for _, kode, _, _, _ in d["detail"]]
-            if len(set(kodes)) != len(kodes):
-                raise PenyimpananError(f"Transaksi {id_trx}: ada kode alat yang tercatat dua kali.")
-            kembali = sum(1 for _, _, tgl, _, _ in d["detail"] if tgl is not None)
-            harapan = status_selesai if kembali == len(kodes) else (status_dipinjam if kembali == 0 else status_sebagian)
+
+            kodes = []
+            sudah_kembali = 0
+            for item in detail_list:
+                kodes.append(item["kode"])
+                if item["tanggal"] is not None:
+                    sudah_kembali = sudah_kembali + 1
+            for kode in kodes:
+                if kodes.count(kode) > 1:
+                    raise PenyimpananError(f"Transaksi {id_trx}: ada kode alat yang tercatat dua kali.")
+
+            # status transaksi dihitung ulang dari detail, lalu dibandingkan dengan yang tertulis di file
+            if sudah_kembali == len(kodes):
+                harapan = status_selesai
+            elif sudah_kembali == 0:
+                harapan = status_dipinjam
+            else:
+                harapan = status_sebagian
             if d["status"] != harapan:
                 raise PenyimpananError(
-                    f"Transaksi {id_trx}: status '{d['status']}' tidak sesuai dengan detail alat (seharusnya '{harapan}').")
+                    f"Transaksi {id_trx}: status '{d['status']}' tidak sesuai dengan detail alat "
+                    f"(seharusnya '{harapan}').")
+
             trx = Transaksi(id_trx, d["nim"], kodes, d["pinjam"])
             trx.batas_kembali = d["batas"]
             trx.status = d["status"]
-            for no, kode, tgl, kondisi, terlambat in d["detail"]:
-                detail = trx.items[kode]
-                detail.tanggal_kembali = tgl
-                detail.kondisi_kembali = kondisi
-                detail.terlambat = terlambat
-            hasil.append(trx)
+            for item in detail_list:
+                detail = trx.items[item["kode"]]
+                detail.tanggal_kembali = item["tanggal"]
+                detail.kondisi_kembali = item["kondisi"]
+                detail.terlambat = item["terlambat"]
+            daftar.append(trx)
 
         try:
-            self._trx.muat(hasil)
+            self._trx.muat(daftar)
         except LabError as e:
             raise PenyimpananError(f"Data tidak konsisten: {e}")
-        self._cek_konsistensi()
-        self._terakhir = self._bangun()
 
     def _cek_konsistensi(self):
         """Pastikan status alat sesuai dengan transaksi aktif."""
-        pemakai = {}
+        # 1. satu alat yang belum kembali hanya boleh ada di satu transaksi aktif
+        pemakai = {}  # {kode alat: [id transaksi yang masih memakainya]}
         for trx in self._trx.aktif():
             for kode in trx.belum_kembali():
-                pemakai.setdefault(kode, []).append(trx.id)
-        for kode, ids in pemakai.items():
+                if kode not in pemakai:
+                    pemakai[kode] = []
+                pemakai[kode].append(trx.id)
+        for kode in pemakai:
+            ids = pemakai[kode]
             if len(ids) > 1:
                 raise PenyimpananError(
                     f"Alat {kode} belum dikembalikan di lebih dari satu transaksi aktif ({', '.join(ids)}).")
+
+        # 2. alat berstatus Dipinjam harus tercatat di sebuah transaksi aktif
         for alat in self._alat.semua():
-            if alat.status == Status_Dipinjam and not alat.transaksi_aktif:
+            if alat.status == Status_Dipinjam and len(alat.transaksi_aktif) == 0:
                 raise PenyimpananError(
                     f"Alat {alat.kode} berstatus Dipinjam tetapi tidak ada transaksi aktif yang mencatatnya.")
+
+        # 3. alat yang belum kembali di transaksi aktif harus berstatus Dipinjam
         for trx in self._trx.aktif():
             for kode in trx.belum_kembali():
                 if self._alat.ambil(kode).status != Status_Dipinjam:

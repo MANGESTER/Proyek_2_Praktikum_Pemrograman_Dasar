@@ -1,3 +1,4 @@
+"""Pengujian penyimpanan permanen ke file .csv (Proyek 2, versi CSV)."""
 import os
 import tempfile
 import unittest
@@ -13,6 +14,7 @@ from services.penyimpanan_csv_service import NAMA_FILE, PenyimpananCsv
 from services.transaksi_service import TransaksiService
 
 HARI_INI = date(2026, 8, 10)
+
 
 def buat_aplikasi(folder):
     """Rangkai satu set service baru yang terhubung ke folder data tertentu."""
@@ -49,14 +51,15 @@ class DasarPenyimpanan(unittest.TestCase):
         with open(os.path.join(self.folder, NAMA_FILE[kunci]), "w", encoding="utf-8") as f:
             f.write(isi)
 
+
 class TestSimpanDanMuat(DasarPenyimpanan):
-    def test_simpan_membuat_folder_dan_semua_file_txt(self):
+    def test_simpan_membuat_folder_dan_semua_file_csv(self):
         self.simpanan.simpan()
         for nama in NAMA_FILE.values():
             self.assertTrue(os.path.isfile(os.path.join(self.folder, nama)), nama)
         with open(os.path.join(self.folder, "mahasiswa.csv"), encoding="utf-8") as f:
             isi = f.read()
-        self.assertIn("M001;Dika;081234567890", isi)
+        self.assertIn("M001,Dika,081234567890", isi)
 
     def test_tidak_ada_file_sementara_tersisa(self):
         self.simpanan.simpan()
@@ -149,86 +152,88 @@ class TestSimpanDanMuat(DasarPenyimpanan):
         with open(path, encoding="utf-8") as f:
             isi = f.read()
         with open(path, "w", encoding="utf-8") as f:
-            f.write(isi + "\nM003;Ayun;081234567892\n\n")
+            f.write(isi + "\nM003,Ayun,081234567892\n\n")
         _, mhs, _, _ = self.muat_ulang()
         self.assertEqual(mhs.ambil("M003").nama, "Ayun")
 
-    def test_penggantian_file_gagal_di_tengah_dibatalkan_dan_disk_tetap_sinkron(self):
-        """Simulasi file dikunci (mis. OneDrive) saat penggantian: file yang sudah terlanjur diganti dikembalikan."""
-        from unittest import mock
-        self.simpanan.simpan()
-        self.trx.buat("M001", ["A001"], tanggal=HARI_INI)
-        asli = os.replace
+    def test_simpan_gagal_menjadi_penyimpanan_error(self):
+        """Bila folder data tidak bisa dibuat (di sini: namanya sudah dipakai sebuah file), simpan() melapor jelas."""
+        jalur = os.path.join(self._tmp.name, "bukan_folder")
+        with open(jalur, "w", encoding="utf-8") as f:
+            f.write("saya file, bukan folder")
+        _, _, _, _, simpanan = buat_aplikasi(jalur)
+        with self.assertRaises(PenyimpananError):
+            simpanan.simpan()
 
-        def ganti_gagal(src, dst):
-            if os.path.basename(dst) == "detail_transaksi.csv":
-                raise PermissionError(13, "file terkunci")
-            return asli(src, dst)
-        with mock.patch("services.penyimpanan_csv_service.os.replace", ganti_gagal):
-            with self.assertRaises(PenyimpananError):
-                self.simpanan.simpan()
-        sisa = [n for n in os.listdir(self.folder) if n.endswith((".tmp", ".bak"))]
-        self.assertEqual(sisa, [])  # tidak ada file sementara/cadangan tertinggal
-        _, mhs, alat, trx = self.muat_ulang()  # disk masih sinkron (keadaan SEBELUM transaksi)
-        self.assertEqual(trx.semua(), [])
-        self.assertTrue(alat.ambil("A001").tersedia)
-        self.simpanan.simpan()  # kunci lepas: simpan berikutnya berhasil
-        _, _, alat2, trx2 = self.muat_ulang()
-        self.assertEqual([x.id for x in trx2.semua()], ["T001"])
-        self.assertEqual(alat2.ambil("A001").status, "Dipinjam")
+    def test_simpan_dua_kali_hasilnya_sama(self):
+        self.trx.buat("M001", ["A001"], tanggal=HARI_INI)
+        self.simpanan.simpan()
+        with open(os.path.join(self.folder, "transaksi.csv"), "rb") as f:
+            pertama = f.read()
+        self.simpanan.simpan()
+        with open(os.path.join(self.folder, "transaksi.csv"), "rb") as f:
+            kedua = f.read()
+        self.assertEqual(pertama, kedua)
+
+    def test_simpan_setelah_data_berubah_memperbarui_file(self):
+        self.simpanan.simpan()
+        self.mhs.edit("M001", "Dika Baru")
+        self.simpanan.simpan()
+        _, mhs, _, _ = self.muat_ulang()
+        self.assertEqual(mhs.ambil("M001").nama, "Dika Baru")
 
 
 class TestFileRusak(DasarPenyimpanan):
     def test_jumlah_kolom_salah_menyebut_nama_file_dan_baris(self):
-        self.tulis("mahasiswa", "nim;nama;no_hp\nM001;Dika\n")
+        self.tulis("mahasiswa", "nim,nama,no_hp\nM001,Dika\n")
         with self.assertRaises(PenyimpananError) as ctx:
             self.muat_ulang()
         self.assertIn("mahasiswa.csv baris 2", str(ctx.exception))
 
     def test_nim_ganda_ditolak(self):
-        self.tulis("mahasiswa", "M001;A;081234567890\nM001;B;081234567891\n")
+        self.tulis("mahasiswa", "M001,A,081234567890\nM001,B,081234567891\n")
         with self.assertRaises(PenyimpananError):
             self.muat_ulang()
 
     def test_status_alat_tidak_dikenal(self):
-        self.tulis("alat", "A001;Laptop;komputasi;Baik;Hilang\n")
+        self.tulis("alat", "A001,Laptop,komputasi,Baik,Hilang\n")
         with self.assertRaises(PenyimpananError):
             self.muat_ulang()
 
     def test_kondisi_alat_tidak_sah(self):
-        self.tulis("alat", "A001;Laptop;komputasi;Hancur;Tersedia\n")
+        self.tulis("alat", "A001,Laptop,komputasi,Hancur,Tersedia\n")
         with self.assertRaises(PenyimpananError):
             self.muat_ulang()
 
     def test_tanggal_salah_format(self):
-        self.tulis("mahasiswa", "M001;Dika;081234567890\n")
-        self.tulis("alat", "A001;Laptop;komputasi;Baik;Dipinjam\n")
-        self.tulis("transaksi", "T001;M001;10-08-2026;2026-08-17;Dipinjam\n")
-        self.tulis("detail", "T001;A001;-;-;0\n")
+        self.tulis("mahasiswa", "M001,Dika,081234567890\n")
+        self.tulis("alat", "A001,Laptop,komputasi,Baik,Dipinjam\n")
+        self.tulis("transaksi", "T001,M001,10-08-2026,2026-08-17,Dipinjam\n")
+        self.tulis("detail", "T001,A001,-,-,0\n")
         with self.assertRaises(PenyimpananError) as ctx:
             self.muat_ulang()
         self.assertIn("YYYY-MM-DD", str(ctx.exception))
 
     def test_transaksi_aktif_dengan_mahasiswa_tidak_ada(self):
-        self.tulis("alat", "A001;Laptop;komputasi;Baik;Dipinjam\n")
-        self.tulis("transaksi", "T001;M404;2026-08-10;2026-08-17;Dipinjam\n")
-        self.tulis("detail", "T001;A001;-;-;0\n")
+        self.tulis("alat", "A001,Laptop,komputasi,Baik,Dipinjam\n")
+        self.tulis("transaksi", "T001,M404,2026-08-10,2026-08-17,Dipinjam\n")
+        self.tulis("detail", "T001,A001,-,-,0\n")
         with self.assertRaises(PenyimpananError):
             self.muat_ulang()
 
     def test_alat_dipinjam_tanpa_transaksi_aktif(self):
-        self.tulis("alat", "A001;Laptop;komputasi;Baik;Dipinjam\n")
+        self.tulis("alat", "A001,Laptop,komputasi,Baik,Dipinjam\n")
         with self.assertRaises(PenyimpananError):
             self.muat_ulang()
 
     def test_detail_untuk_transaksi_yang_tidak_ada(self):
-        self.tulis("detail", "T777;A001;-;-;0\n")
+        self.tulis("detail", "T777,A001,-,-,0\n")
         with self.assertRaises(PenyimpananError):
             self.muat_ulang()
 
     def test_transaksi_tanpa_detail(self):
-        self.tulis("mahasiswa", "M001;Dika;081234567890\n")
-        self.tulis("transaksi", "T001;M001;2026-08-10;2026-08-17;selesai\n")
+        self.tulis("mahasiswa", "M001,Dika,081234567890\n")
+        self.tulis("transaksi", "T001,M001,2026-08-10,2026-08-17,selesai\n")
         with self.assertRaises(PenyimpananError):
             self.muat_ulang()
 
@@ -248,28 +253,28 @@ class TestPerbaikanTahap2(DasarPenyimpanan):
             f.write(b"\xef\xbb\xbf" + isi)
 
     def test_kondisi_dan_status_alat_harus_cocok(self):
-        self.tulis("alat", "A001;Laptop;komputasi;Rusak Berat;Tersedia\n")
+        self.tulis("alat", "A001,Laptop,komputasi,Rusak Berat,Tersedia\n")
         with self.assertRaises(PenyimpananError) as ctx:
             self.muat_ulang()
         self.assertIn("alat.csv baris 1", str(ctx.exception))
-        self.tulis("alat", "A001;Laptop;komputasi;Baik;Rusak\n")
+        self.tulis("alat", "A001,Laptop,komputasi,Baik,Rusak\n")
         with self.assertRaises(PenyimpananError):
             self.muat_ulang()
 
     def test_status_transaksi_harus_sesuai_detail(self):
-        self.tulis("mahasiswa", "M001;Dika;081234567890\n")
-        self.tulis("alat", "A001;Laptop;komputasi;Baik;Dipinjam\n")
-        self.tulis("transaksi", "T001;M001;2026-08-10;2026-08-17;selesai\n")  # padahal alat belum kembali
-        self.tulis("detail", "T001;A001;-;-;0\n")
+        self.tulis("mahasiswa", "M001,Dika,081234567890\n")
+        self.tulis("alat", "A001,Laptop,komputasi,Baik,Dipinjam\n")
+        self.tulis("transaksi", "T001,M001,2026-08-10,2026-08-17,selesai\n")  # padahal alat belum kembali
+        self.tulis("detail", "T001,A001,-,-,0\n")
         with self.assertRaises(PenyimpananError) as ctx:
             self.muat_ulang()
         self.assertIn("tidak sesuai dengan detail", str(ctx.exception))
 
     def test_tanggal_dan_kondisi_kembali_harus_berpasangan(self):
-        self.tulis("mahasiswa", "M001;Dika;081234567890\n")
-        self.tulis("alat", "A001;Laptop;komputasi;Baik;Dipinjam\n")
-        self.tulis("transaksi", "T001;M001;2026-08-10;2026-08-17;Dipinjam\n")
-        self.tulis("detail", "T001;A001;2026-08-11;-;0\n")
+        self.tulis("mahasiswa", "M001,Dika,081234567890\n")
+        self.tulis("alat", "A001,Laptop,komputasi,Baik,Dipinjam\n")
+        self.tulis("transaksi", "T001,M001,2026-08-10,2026-08-17,Dipinjam\n")
+        self.tulis("detail", "T001,A001,2026-08-11,-,0\n")
         with self.assertRaises(PenyimpananError):
             self.muat_ulang()
 
@@ -279,30 +284,18 @@ class TestPerbaikanTahap2(DasarPenyimpanan):
         self.simpanan.simpan()
         path = os.path.join(self.folder, "detail_transaksi.csv")
         with open(path, encoding="utf-8") as f:
-            isi = f.read().replace("T002;A002", "T002;A001")
+            isi = f.read().replace("T002,A002", "T002,A001")
         with open(path, "w", encoding="utf-8") as f:
             f.write(isi)
         with self.assertRaises(PenyimpananError) as ctx:
             self.muat_ulang()
         self.assertIn("lebih dari satu transaksi aktif", str(ctx.exception))
 
-    def test_kategori_milik_alat_terdaftar_walau_kategori_txt_hilang(self):
+    def test_kategori_milik_alat_terdaftar_walau_kategori_csv_hilang(self):
         self.simpanan.simpan()
         os.remove(os.path.join(self.folder, "kategori.csv"))
         _, _, alat, _ = self.muat_ulang()
         self.assertIn("perangkat elektronik", alat.daftar_kategori())
-
-    def test_simpan_tidak_menulis_ulang_bila_tidak_ada_perubahan(self):
-        from unittest import mock
-        self.simpanan.simpan()
-        with mock.patch("services.penyimpanan_csv_service.os.replace") as ganti:
-            self.simpanan.simpan()
-            self.assertEqual(ganti.call_count, 0)
-        self.mhs.edit("M001", "Dika Baru")
-        with mock.patch("services.penyimpanan_csv_service.os.replace", wraps=os.replace) as ganti:
-            self.simpanan.simpan()
-            nama_ditulis = {os.path.basename(c.args[1]) for c in ganti.call_args_list}
-        self.assertEqual(nama_ditulis, {"mahasiswa.csv", "log.csv"})  # hanya yang berubah
 
     def test_file_yang_hilang_ditulis_ulang(self):
         self.simpanan.simpan()
@@ -327,42 +320,43 @@ class TestFormatCsv(DasarPenyimpanan):
         with open(os.path.join(self.folder, "mahasiswa.csv"), "rb") as f:
             mentah = f.read()
         self.assertTrue(mentah.startswith(b"\xef\xbb\xbf"))
-        self.assertTrue(mentah.decode("utf-8-sig").startswith("nim;nama;no_hp\r\n"))
+        self.assertTrue(mentah.decode("utf-8-sig").startswith("nim,nama,no_hp\r\n"))
 
     def test_file_tanpa_baris_judul_tetap_terbaca(self):
-        self.tulis("mahasiswa", "M001;Dika;081234567890\nM002;Abyan;081234567891\n")
+        self.tulis("mahasiswa", "M001,Dika,081234567890\nM002,Abyan,081234567891\n")
         _, mhs, _, _ = self.muat_ulang()
         self.assertEqual(sorted(m.nim for m in mhs.semua()), ["M001", "M002"])
 
-    def test_pemisah_koma_dikenali_otomatis(self):
+    def test_nama_mengandung_koma_aman(self):
         self.tulis("mahasiswa", 'nim,nama,no_hp\nM001,"Dika, S.Kom",081234567890\n')
         _, mhs, _, _ = self.muat_ulang()
         self.assertEqual(mhs.ambil("M001").nama, "Dika, S.Kom")
 
-    def test_hasil_simpan_excel_dengan_kolom_kosong_di_ujung(self):
-        self.tulis("mahasiswa", "nim;nama;no_hp;;\r\nM001;Dika;081234567890;;\r\n;;;;\r\n")
+    def test_file_bukan_utf8_ditolak_dengan_pesan_jelas(self):
+        os.makedirs(self.folder, exist_ok=True)
+        with open(os.path.join(self.folder, "mahasiswa.csv"), "wb") as f:
+            f.write("nim,nama,no_hp\nM001,Caf\u00e9 Dika,081234567890\n".encode("cp1252"))
+        with self.assertRaises(PenyimpananError) as ctx:
+            self.muat_ulang()
+        self.assertIn("UTF-8", str(ctx.exception))
+
+    def test_baris_kosong_dan_baris_penuh_koma_dilewati(self):
+        self.tulis("mahasiswa", "nim,nama,no_hp\r\nM001,Dika,081234567890\r\n,,\r\n\r\n")
         _, mhs, _, _ = self.muat_ulang()
         self.assertEqual([m.nim for m in mhs.semua()], ["M001"])
 
-    def test_file_cp1252_bukan_utf8_tetap_terbaca(self):
-        os.makedirs(self.folder, exist_ok=True)
-        with open(os.path.join(self.folder, "mahasiswa.csv"), "wb") as f:
-            f.write("nim;nama;no_hp\nM001;Caf\u00e9 Dika;081234567890\n".encode("cp1252"))
-        _, mhs, _, _ = self.muat_ulang()
-        self.assertEqual(mhs.ambil("M001").nama, "Caf\u00e9 Dika")
-
     def test_tanggal_hasil_format_excel_ditolak_dengan_pesan_jelas(self):
-        self.tulis("mahasiswa", "M001;Dika;081234567890\n")
-        self.tulis("alat", "A001;Laptop;komputasi;Baik;Dipinjam\n")
-        self.tulis("transaksi", "T001;M001;10/08/2026;17/08/2026;Dipinjam\n")
-        self.tulis("detail", "T001;A001;-;-;0\n")
+        self.tulis("mahasiswa", "M001,Dika,081234567890\n")
+        self.tulis("alat", "A001,Laptop,komputasi,Baik,Dipinjam\n")
+        self.tulis("transaksi", "T001,M001,10/08/2026,17/08/2026,Dipinjam\n")
+        self.tulis("detail", "T001,A001,-,-,0\n")
         with self.assertRaises(PenyimpananError) as ctx:
             self.muat_ulang()
         self.assertIn("transaksi.csv baris 1", str(ctx.exception))
         self.assertIn("YYYY-MM-DD", str(ctx.exception))
 
     def test_tanda_kutip_tidak_seimbang_ditolak(self):
-        self.tulis("mahasiswa", 'M001;"Dika;081234567890\n')
+        self.tulis("mahasiswa", 'M001,"Dika,081234567890\n')
         with self.assertRaises(PenyimpananError):
             self.muat_ulang()
 

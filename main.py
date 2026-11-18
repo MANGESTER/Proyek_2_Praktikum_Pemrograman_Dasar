@@ -13,7 +13,6 @@ from ui.menu import MenuCLI
 # Folder data selalu berada di sebelah main.py, apa pun folder tempat program dijalankan.
 FOLDER_DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 
-
 def main():
     log = LogService()
     mahasiswa = MahasiswaService(log)
@@ -40,7 +39,6 @@ def main():
             penyimpanan.simpan()
         except PenyimpananError as e:
             print(f"[!] PERINGATAN: data belum tersimpan ke file. {e}")
-
 
 if __name__ == "__main__":
     main()
