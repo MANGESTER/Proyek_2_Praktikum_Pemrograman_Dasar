@@ -96,7 +96,6 @@ class AlatService:
                 raise ValidasiError("Mode pencarian harus: kode, nama, kategori, atau semua.")
         return hasil
 
-    # ---- daftar berdasarkan status ----
     def _filter(self, status):
         return [a for a in self._data.values() if a.status == status]
 
